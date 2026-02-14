@@ -1,0 +1,82 @@
+name: 'ragaudit RAG Poisoning Scan'
+description: 'Scan documents for RAG knowledge base poisoning patterns before embedding'
+author: 'Kris Kimmerle'
+
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  path:
+    description: 'Path to scan (file or directory)'
+    required: false
+    default: '.'
+  
+  format:
+    description: 'Output format (text or json)'
+    required: false
+    default: 'text'
+  
+  check:
+    description: 'Fail if score below min-score'
+    required: false
+    default: 'true'
+  
+  min-score:
+    description: 'Minimum security score (0-100)'
+    required: false
+    default: '80'
+  
+  ignore:
+    description: 'Comma-separated list of rules to ignore (e.g., RP01,RP03)'
+    required: false
+    default: ''
+  
+  exclude:
+    description: 'Comma-separated list of paths to exclude'
+    required: false
+    default: ''
+  
+  python-version:
+    description: 'Python version to use'
+    required: false
+    default: '3.11'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    
+    - name: Install ragaudit
+      shell: bash
+      run: |
+        pip install ragaudit
+    
+    - name: Run ragaudit scan
+      shell: bash
+      run: |
+        args=("${{ inputs.path }}")
+        args+=("--format" "${{ inputs.format }}")
+        
+        if [ "${{ inputs.check }}" = "true" ]; then
+          args+=("--check" "--min-score" "${{ inputs.min-score }}")
+        fi
+        
+        if [ -n "${{ inputs.ignore }}" ]; then
+          IFS=',' read -ra RULES <<< "${{ inputs.ignore }}"
+          for rule in "${RULES[@]}"; do
+            args+=("--ignore" "$rule")
+          done
+        fi
+        
+        if [ -n "${{ inputs.exclude }}" ]; then
+          IFS=',' read -ra PATHS <<< "${{ inputs.exclude }}"
+          for path in "${PATHS[@]}"; do
+            args+=("--exclude" "$path")
+          done
+        fi
+        
+        ragaudit "${args[@]}"
